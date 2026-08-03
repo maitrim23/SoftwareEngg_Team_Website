@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Engineering Project — Team Progress & Documentation</title>
+<meta name="description" content="A private hub where our team records progress, shares presentations and documents the development of our software engineering project.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="index.html" class="logo">
+      <span class="logo-bars" aria-hidden="true"><span></span><span></span></span>
+      SE Project
+    </a>
+    <nav class="main-nav">
+      <a href="index.html" class="nav-link nav-link--active">Home</a>
+      <a href="planning.html" class="nav-link">Planning</a>
+    </nav>
+    <a href="auth.html" class="signin-btn">Team sign in</a>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero reveal">
+    <div class="wrap">
+      <p class="eyebrow">Software Engineering Project</p>
+      <h1 class="hero-title">Project Progress</h1>
+      <p class="hero-title-sub"><span class="amp">&amp;</span> <span class="mono-caps">Documentation</span></p>
+      <p class="hero-sub">Every milestone, presentation and decision behind our project — kept in one place, in the order it happened.</p>
+      <a href="planning.html" class="cta">View project materials <span class="cta-arrow">→</span></a>
+    </div>
+  </section>
+
+  <div class="wrap"><div class="hr"></div></div>
+
+  <section class="team reveal" id="team">
+    <div class="wrap">
+      <div class="team-heading">
+        <h2 class="section-title">The team</h2>
+        <p class="team-count" id="team-count"></p>
+      </div>
+      <div class="hr"></div>
+
+      <!--
+        ============================================================
+        ✏️  EDIT TEAM MEMBERS HERE
+        ============================================================
+        This list is built automatically from the TEAM_MEMBERS array
+        in script.js — you do NOT need to touch this HTML.
+
+        Open script.js and find:  const TEAM_MEMBERS = [ ... ]
+
+        Each person is one object:
+            { name: "Jasmeen Kaur", role: "Developer", email: "jasmeen@team.com" }
+
+        Edit name / role / email, add a new object to add a member,
+        or delete one to remove a member. The page updates itself.
+        ============================================================
+      -->
+      <div id="team-list"><!-- rows injected by script.js --></div>
+    </div>
+  </section>
+
+  <!-- Decorative flourish — one dot per team member, hover/tap a dot to
+       see that member's name, avatar and roll number -->
+  <div class="wrap">
+    <div class="flourish reveal">
+      <p class="flourish-hint">Hover a dot to meet the team</p>
+      <div class="flourish-wrap">
+        <svg viewBox="0 0 340 300" class="flourish-svg" aria-hidden="true">
+          <circle class="fl-node fl-node--hub" cx="170" cy="150" r="5"/>
+          <path class="fl-petal" d="M170,150 Q182,90 190,29 Q158,88 170,150 Z"/>
+          <path class="fl-petal" d="M170,150 Q232,124 292,105 Q222,132 170,150 Z"/>
+          <path class="fl-petal" d="M170,150 Q206,186 234,226 Q186,198 170,150 Z"/>
+          <path class="fl-petal" d="M170,150 Q124,182 86,221 Q140,196 170,150 Z"/>
+        </svg>
+        <!--
+          ============================================================
+          ✏️  These hotspots are generated automatically by script.js
+          from TEAM_MEMBERS (see renderFlourish()) — no HTML editing
+          needed here. Supports up to 4 members (one per petal tip).
+          ============================================================
+        -->
+        <div class="fl-hotspots" id="fl-hotspots"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <p class="footer-text">Software Engineering Project — internal team record</p>
+  </div>
+</footer>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>

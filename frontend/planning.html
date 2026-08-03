@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Materials — Software Engineering Project</title>
+<meta name="description" content="Slides, planning documents and reports for our software engineering project.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="index.html" class="logo">
+      <span class="logo-bars" aria-hidden="true"><span></span><span></span></span>
+      SE Project
+    </a>
+    <nav class="main-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="planning.html" class="nav-link nav-link--active">Planning</a>
+    </nav>
+    <a href="auth.html" class="signin-btn">Team sign in</a>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero hero--planning reveal">
+    <div class="wrap">
+      <p class="eyebrow">Planning &amp; Presentations</p>
+      <h1 class="hero-title">Project Materials</h1>
+
+      <!--
+        ============================================================
+        ✏️  EDIT THIS PARAGRAPH HERE
+        ============================================================
+        Updated per request: "Only team members can upload."
+        (previously also said "...or open files")
+      -->
+      <p class="hero-sub">Slides, planning documents and reports. Only team members can upload.</p>
+
+      <button type="button" class="signin-upload-box">Upload a file</button>
+    </div>
+  </section>
+
+  <div class="wrap"><div class="hr"></div></div>
+
+  <section class="uploads reveal">
+    <div class="wrap">
+      <p class="eyebrow">Uploaded</p>
+      <!--
+        ============================================================
+        ✏️  EDIT UPLOADED FILES HERE
+        ============================================================
+        This is populated from the UPLOADED_FILES array in script.js.
+        It's empty by default, matching the live site. Add objects
+        like { name: "Sprint 1 report.pdf", date: "2026-08-01" } to
+        the array in script.js to list real files here.
+        ============================================================
+      -->
+      <div id="uploads-list"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <p class="footer-text">Software Engineering Project — internal team record</p>
+  </div>
+</footer>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
