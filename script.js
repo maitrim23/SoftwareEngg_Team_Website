@@ -71,17 +71,29 @@ async function renderUploads(){
 
   const { data: files, error } = await supabase
     .from("files")
-    .select("name, path, created_at")
-    .order("created_at", { ascending: false });
+    .select(`
+      name,
+      current_version_id,
+      file_versions!current_version_id (
+        storage_url,
+        uploaded_at
+      )
+    `);
 
   if (error || !files || !files.length){
     list.innerHTML = `<p class="uploads-empty">Nothing uploaded yet.</p>`;
     return;
   }
 
-  list.innerHTML = files.map(f => {
-    const url = supabase.storage.from("project-files").getPublicUrl(f.path).data.publicUrl;
-    const date = new Date(f.created_at).toLocaleDateString();
+  // Filter out any files that don't have versions yet or couldn't join
+  const validFiles = files.filter(f => f.file_versions);
+
+  // Sort by uploaded_at descending
+  validFiles.sort((a, b) => new Date(b.file_versions.uploaded_at) - new Date(a.file_versions.uploaded_at));
+
+  list.innerHTML = validFiles.map(f => {
+    const url = supabase.storage.from("project-files").getPublicUrl(f.file_versions.storage_url).data.publicUrl;
+    const date = new Date(f.file_versions.uploaded_at).toLocaleDateString();
     return `
       <div class="upload-row">
         <a href="${url}" target="_blank" class="name">${escapeHTML(f.name)}</a>
@@ -237,6 +249,9 @@ function setupUploadBox(){
     input.onchange = async () => {
       const file = input.files[0];
       if (!file) return;
+      
+      const commitMessage = prompt("Enter a commit message for this upload:", "Uploaded " + file.name);
+      if (!commitMessage) return;
 
       const path = `${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
@@ -248,7 +263,34 @@ function setupUploadBox(){
         return;
       }
 
-      await supabase.from("files").insert({ name: file.name, path });
+      // Call the Edge Function for file versioning
+      try {
+        const response = await fetch("https://eabcgxzlambjgbtmyemy.supabase.co/functions/v1/upload-file", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            category: "other",
+            visibility: "public",
+            commitMessage: commitMessage,
+            sizeBytes: file.size,
+            storageUrl: path
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          alert("Error saving version: " + (errData.error || response.statusText));
+          return;
+        }
+      } catch (err) {
+        alert("Network error calling edge function: " + err.message);
+        return;
+      }
+
       renderUploads();
     };
     input.click();
