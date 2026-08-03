@@ -29,10 +29,10 @@ const supabase = createClient(
    below it has no such limit.
    ============================================================ */
 const TEAM_MEMBERS = [
-  { name: "Jasmeen Kaur", role: "", email: "jkaur11_be24@thapar.edu",   roll: "Roll No. — 1024030103", photo: null },
-  { name: "Maitri",       role: "", email: "mmishra_be24@thapar.edu",    roll: "Roll No. — 1024030124", photo: null },
-  { name: "Ananya",       role: "", email: "asaini2_be24@thapar.edu",    roll: "Roll No. — 1024030146", photo: null },
-  { name: "Shambhavi",    role: "", email: "schaudhary_be24@thapar.edu", roll: "Roll No. — 1024030885", photo: null },
+  { name: "Jasmeen Kaur", role: "", email: "jkaur11_be24@thapar.edu",   roll: "Roll No.: 1024030103", photo: null },
+  { name: "Maitri",       role: "", email: "mmishra_be24@thapar.edu",    roll: "Roll No.: 1024030124", photo: null },
+  { name: "Ananya",       role: "", email: "asaini2_be24@thapar.edu",    roll: "Roll No.: 1024030146", photo: null },
+  { name: "Shambhavi",    role: "", email: "schaudhary_be24@thapar.edu", roll: "Roll No.: 1024030885", photo: null },
 ];
 
 /* ============================================================
@@ -65,18 +65,47 @@ function renderTeam(members){
    "project-files" + a "files" table with name/path/created_at
    columns) instead of the old static UPLOADED_FILES array.
    ============================================================ */
+async function logActivity(type, summary) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+  
+  // Find actor name from team_members
+  const { data: team } = await supabase.from('team_members').select('id').eq('email', session.user.email).single();
+  if (team) {
+    await supabase.from('activity_log').insert([{
+      actor_id: team.id,
+      type: type,
+      summary_text: summary
+    }]);
+  }
+}
+
 async function renderUploads(){
   const list = document.getElementById("uploads-list");
   if (!list) return;
 
+  const filterCheckbox = document.getElementById("filter-my-uploads");
+  const myUploadsOnly = filterCheckbox ? filterCheckbox.checked : false;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  let myTeamId = null;
+  
+  if (myUploadsOnly && session) {
+    const { data: team } = await supabase.from('team_members').select('id').eq('email', session.user.email).single();
+    if (team) myTeamId = team.id;
+  }
+
   const { data: files, error } = await supabase
     .from("files")
     .select(`
+      id,
       name,
       current_version_id,
       file_versions!current_version_id (
+        id,
         storage_url,
-        uploaded_at
+        uploaded_at,
+        uploaded_by
       )
     `);
 
@@ -85,22 +114,111 @@ async function renderUploads(){
     return;
   }
 
-  // Filter out any files that don't have versions yet or couldn't join
-  const validFiles = files.filter(f => f.file_versions);
+  let validFiles = files.filter(f => f.file_versions);
+  
+  if (myUploadsOnly && myTeamId) {
+    validFiles = validFiles.filter(f => f.file_versions.uploaded_by === myTeamId);
+  }
 
-  // Sort by uploaded_at descending
+  if (!validFiles.length) {
+    list.innerHTML = `<p class="uploads-empty">You haven't uploaded any files yet.</p>`;
+    return;
+  }
+
   validFiles.sort((a, b) => new Date(b.file_versions.uploaded_at) - new Date(a.file_versions.uploaded_at));
 
   list.innerHTML = validFiles.map(f => {
-    const url = supabase.storage.from("project-files").getPublicUrl(f.file_versions.storage_url).data.publicUrl;
     const date = new Date(f.file_versions.uploaded_at).toLocaleDateString();
     return `
-      <div class="upload-row">
-        <a href="${url}" target="_blank" class="name">${escapeHTML(f.name)}</a>
-        <span class="date">${escapeHTML(date)}</span>
+      <div class="upload-row" data-id="${f.id}" data-url="${f.file_versions.storage_url}" data-name="${escapeHTML(f.name)}">
+        <span class="name" style="pointer-events:none;">${escapeHTML(f.name)}</span>
+        <span class="date" style="pointer-events:none;">${escapeHTML(date)}</span>
       </div>
     `;
   }).join("");
+
+  // Setup click handlers for the split pane
+  const rows = list.querySelectorAll(".upload-row");
+  const previewCol = document.getElementById("preview-col");
+  const previewIframe = document.getElementById("file-preview");
+  const previewTitle = document.getElementById("preview-title");
+  const btnDownload = document.getElementById("btn-download");
+  const btnDelete = document.getElementById("btn-delete");
+
+  rows.forEach(row => {
+    row.addEventListener("click", () => {
+      // Highlight active row
+      rows.forEach(r => r.classList.remove("active"));
+      row.classList.add("active");
+
+      const storageUrl = row.getAttribute("data-url");
+      const fileName = row.getAttribute("data-name");
+      const fileId = row.getAttribute("data-id");
+      
+      const publicUrl = supabase.storage.from("project-files").getPublicUrl(storageUrl).data.publicUrl;
+
+      // Check file extension to prevent auto-download of unsupported types in iframe
+      const ext = fileName.split('.').pop().toLowerCase();
+      const supportedInline = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'txt', 'mp4', 'webm'];
+      
+      previewCol.style.display = "block";
+      previewTitle.textContent = fileName;
+
+      if (supportedInline.includes(ext)) {
+        previewIframe.style.display = "block";
+        previewIframe.src = publicUrl;
+        // Remove any old fallback message
+        let fallbackMsg = document.getElementById("preview-fallback");
+        if (fallbackMsg) fallbackMsg.style.display = "none";
+      } else {
+        // Prevent iframe from auto-downloading the file
+        previewIframe.style.display = "none";
+        previewIframe.src = "about:blank"; // Clear iframe
+        
+        // Show fallback message
+        let fallbackMsg = document.getElementById("preview-fallback");
+        if (!fallbackMsg) {
+          fallbackMsg = document.createElement("div");
+          fallbackMsg.id = "preview-fallback";
+          fallbackMsg.style.padding = "20px";
+          fallbackMsg.style.textAlign = "center";
+          fallbackMsg.style.color = "var(--ink-soft)";
+          fallbackMsg.style.border = "1px solid var(--line)";
+          fallbackMsg.style.borderRadius = "6px";
+          fallbackMsg.style.marginTop = "10px";
+          previewIframe.parentNode.appendChild(fallbackMsg);
+        }
+        fallbackMsg.style.display = "block";
+        fallbackMsg.innerHTML = `Preview is not available for <strong>.${ext}</strong> files.<br>Please use the Download button above.`;
+      }
+
+      // Setup Download
+      btnDownload.onclick = () => {
+        window.open(publicUrl, "_blank");
+      };
+
+      // Setup Delete
+      btnDelete.onclick = async () => {
+        if(!confirm(`Are you sure you want to delete ${fileName}?`)) return;
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { alert("You must be signed in to delete files."); return; }
+
+        btnDelete.textContent = "Deleting...";
+        
+        // Delete from storage
+        await supabase.storage.from("project-files").remove([storageUrl]);
+        // Delete from DB (cascade handles versions)
+        await supabase.from("files").delete().eq("id", fileId);
+        
+        await logActivity("file_deleted", `deleted ${fileName}`);
+        
+        previewCol.style.display = "none";
+        btnDelete.textContent = "Delete";
+        renderUploads();
+      };
+    });
+  });
 }
 
 /* Fixed positions of the 4 petal tips in the flourish SVG's
@@ -124,13 +242,19 @@ function renderFlourish(members){
     const pos = FLOURISH_NODES[i];
     const left = (pos.x / 340 * 100).toFixed(2);
     const top = (pos.y / 300 * 100).toFixed(2);
-    const flip = top < 20 ? " fl-hotspot--flip" : "";
+    
+    let directionClass = "";
+    if (i === 0) directionClass = " fl-hotspot--left";
+    else if (i === 1) directionClass = " fl-hotspot--right";
+    else if (i === 2) directionClass = " fl-hotspot--right";
+    else if (i === 3) directionClass = " fl-hotspot--left";
+
     const avatarInner = m.photo
       ? `<img src="${escapeHTML(m.photo)}" alt="" class="fl-avatar-img">`
       : escapeHTML(initials(m.name));
 
     return `
-      <button type="button" class="fl-hotspot${flip}" style="left:${left}%; top:${top}%;" aria-label="${escapeHTML(m.name)}">
+      <button type="button" class="fl-hotspot${directionClass}" style="left:${left}%; top:${top}%;" aria-label="${escapeHTML(m.name)}">
         <span class="fl-dot"></span>
         <span class="fl-card">
           <span class="fl-avatar">${avatarInner}</span>
@@ -180,6 +304,63 @@ function setupScrollReveal(){
   targets.forEach(el => observer.observe(el));
 }
 
+/* ============================================================
+   Auth State & Theme logic
+   ============================================================ */
+async function updateNavState() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const signinBtn = document.querySelector(".signin-btn");
+  const authOnlyEls = document.querySelectorAll(".auth-only");
+
+  if (session) {
+    if (signinBtn && !window.location.pathname.includes("auth.html")) {
+      signinBtn.textContent = "Sign out";
+      signinBtn.href = "#";
+      signinBtn.onclick = async (e) => {
+        e.preventDefault();
+        await supabase.auth.signOut();
+        window.location.href = "index.html";
+      };
+    } else if (signinBtn && window.location.pathname.includes("auth.html")) {
+      // If already signed in and on auth page, redirect away
+      window.location.href = "planning.html";
+    }
+
+    authOnlyEls.forEach(el => {
+      el.style.display = "";
+    });
+  }
+}
+
+function setupThemeToggle() {
+  const toggleBtn = document.getElementById("theme-toggle");
+  if (!toggleBtn) return;
+
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) {
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }
+  
+  // Set initial icon
+  const currentTheme = document.documentElement.getAttribute("data-theme");
+  toggleBtn.textContent = currentTheme === "dark" ? "☀️" : "🌙";
+
+  toggleBtn.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const next = current === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    toggleBtn.textContent = next === "dark" ? "☀️" : "🌙";
+  });
+}
+
+function setupFilter() {
+  const filterCheckbox = document.getElementById("filter-my-uploads");
+  if (filterCheckbox) {
+    filterCheckbox.addEventListener("change", () => renderUploads());
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   renderTeam(TEAM_MEMBERS);
   renderUploads();
@@ -188,7 +369,49 @@ document.addEventListener("DOMContentLoaded", () => {
   setupHeaderScroll();
   setupScrollReveal();
   setupUploadBox();
+  updateNavState();
+  setupThemeToggle();
+  setupFilter();
+  renderHistory();
 });
+
+async function renderHistory() {
+  const list = document.getElementById("history-list");
+  if (!list) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    window.location.href = "auth.html";
+    return;
+  }
+
+  const { data: logs, error } = await supabase
+    .from("activity_log")
+    .select("*, team_members(name)")
+    .order("created_at", { ascending: false });
+
+  if (error || !logs || !logs.length) {
+    list.innerHTML = `<p class="uploads-empty">No history recorded yet.</p>`;
+    return;
+  }
+
+  list.innerHTML = logs.map(log => {
+    const date = new Date(log.created_at).toLocaleString();
+    const actionClass = log.type === 'file_deleted' ? 'color: #d9534f;' : 'color: var(--teal);';
+    const actorName = log.team_members ? log.team_members.name : 'Someone';
+    return `
+      <div class="upload-row" style="cursor: default; padding: 16px;">
+        <div style="display: flex; gap: 16px; align-items: baseline;">
+          <strong style="font-family: var(--font-serif); font-size: 1.1rem; width: 100px; flex-shrink: 0;">${escapeHTML(actorName)}</strong>
+          <span style="font-family: var(--font-mono); ${actionClass}">
+            ${escapeHTML(log.summary_text)}
+          </span>
+        </div>
+        <span class="date" style="flex-shrink: 0;">${escapeHTML(date)}</span>
+      </div>
+    `;
+  }).join("");
+}
 
 /* ============================================================
    Team sign-in form (auth.html)
@@ -235,7 +458,22 @@ function setupAuthForm(){
    ============================================================ */
 function setupUploadBox(){
   const box = document.querySelector(".signin-upload-box");
-  if (!box) return;
+  const modal = document.getElementById("upload-modal");
+  const closeBtn = document.getElementById("modal-close");
+  const form = document.getElementById("upload-form");
+  const statusMsg = document.getElementById("upload-status");
+  const categorySelect = document.getElementById("upload-category");
+  const customCategoryGroup = document.getElementById("custom-category-group");
+  
+  if (!box || !modal) return;
+
+  categorySelect.addEventListener("change", () => {
+    if (categorySelect.value === "other") {
+      customCategoryGroup.style.display = "flex";
+    } else {
+      customCategoryGroup.style.display = "none";
+    }
+  });
 
   box.addEventListener("click", async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -243,56 +481,77 @@ function setupUploadBox(){
       window.location.href = "auth.html";
       return;
     }
+    modal.style.display = "flex";
+    statusMsg.textContent = "";
+    form.reset();
+    customCategoryGroup.style.display = "none";
+  });
 
-    const input = document.createElement("input");
-    input.type = "file";
-    input.onchange = async () => {
-      const file = input.files[0];
-      if (!file) return;
-      
-      const commitMessage = prompt("Enter a commit message for this upload:", "Uploaded " + file.name);
-      if (!commitMessage) return;
+  closeBtn.addEventListener("click", () => {
+    modal.style.display = "none";
+  });
 
-      const path = `${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("project-files")
-        .upload(path, file);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById("upload-file-input");
+    const file = fileInput.files[0];
+    if (!file) return;
 
-      if (uploadError){
-        alert(uploadError.message);
+    const commitMessage = document.getElementById("upload-commit").value;
+    const visibility = document.querySelector('input[name="upload-visibility"]:checked').value;
+    let category = categorySelect.value;
+    if (category === "other") {
+      const customVal = document.getElementById("upload-custom-category").value.trim();
+      if (customVal) category = customVal;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    statusMsg.textContent = "Uploading to Storage...";
+    const path = `${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("project-files")
+      .upload(path, file);
+
+    if (uploadError){
+      statusMsg.textContent = uploadError.message;
+      return;
+    }
+
+    statusMsg.textContent = "Saving version history...";
+    
+    // Call the Edge Function for file versioning
+    try {
+      const response = await fetch("https://eabcgxzlambjgbtmyemy.supabase.co/functions/v1/upload-file", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          category: category,
+          visibility: visibility,
+          commitMessage: commitMessage,
+          sizeBytes: file.size,
+          storageUrl: path
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        statusMsg.textContent = "Error saving version: " + (errData.error || response.statusText);
         return;
       }
+    } catch (err) {
+      statusMsg.textContent = "Network error: " + err.message;
+      return;
+    }
 
-      // Call the Edge Function for file versioning
-      try {
-        const response = await fetch("https://eabcgxzlambjgbtmyemy.supabase.co/functions/v1/upload-file", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${session.access_token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            category: "other",
-            visibility: "public",
-            commitMessage: commitMessage,
-            sizeBytes: file.size,
-            storageUrl: path
-          })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          alert("Error saving version: " + (errData.error || response.statusText));
-          return;
-        }
-      } catch (err) {
-        alert("Network error calling edge function: " + err.message);
-        return;
-      }
-
-      renderUploads();
-    };
-    input.click();
+    await logActivity("file_upload", `uploaded ${file.name}`);
+    
+    modal.style.display = "none";
+    renderUploads();
   });
 }

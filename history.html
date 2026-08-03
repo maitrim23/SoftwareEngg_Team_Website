@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History — Software Engineering Project</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a href="index.html" class="logo">
+      <span class="logo-bars" aria-hidden="true"><span></span><span></span></span>
+      SE Project
+    </a>
+    <nav class="main-nav">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="planning.html" class="nav-link">Planning</a>
+      <a href="history.html" class="nav-link nav-link--active auth-only" style="display: none;">History</a>
+    </nav>
+    <div class="header-right">
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+      <a href="auth.html" class="signin-btn">Team sign in</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero reveal">
+    <div class="wrap">
+      <p class="eyebrow">Activity Log</p>
+      <h1 class="hero-title">Project History</h1>
+      <p class="hero-sub">A timeline of every file upload and deletion. This page is only visible to the team.</p>
+    </div>
+  </section>
+
+  <div class="wrap"><div class="hr"></div></div>
+
+  <section class="uploads reveal">
+    <div class="wrap">
+      <div id="history-list">
+        <p class="uploads-empty">Checking access...</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="script.js"></script>
+
+</body>
+</html>
