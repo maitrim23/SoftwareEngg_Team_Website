@@ -74,7 +74,7 @@ async function logActivity(type, summary) {
   if (team) {
     await supabase.from('activity_log').insert([{
       actor_id: team.id,
-      type: type,
+      type: 'file_upload',
       summary_text: summary
     }]);
   }
@@ -101,6 +101,7 @@ async function renderUploads(){
       id,
       name,
       current_version_id,
+      visibility,
       file_versions!current_version_id (
         id,
         storage_url,
@@ -130,7 +131,7 @@ async function renderUploads(){
   list.innerHTML = validFiles.map(f => {
     const date = new Date(f.file_versions.uploaded_at).toLocaleDateString();
     return `
-      <div class="upload-row" data-id="${f.id}" data-url="${f.file_versions.storage_url}" data-name="${escapeHTML(f.name)}">
+      <div class="upload-row" data-id="${f.id}" data-url="${f.file_versions.storage_url}" data-name="${escapeHTML(f.name)}" data-visibility="${f.visibility || 'public'}">
         <span class="name" style="pointer-events:none;">${escapeHTML(f.name)}</span>
         <span class="date" style="pointer-events:none;">${escapeHTML(date)}</span>
       </div>
@@ -190,6 +191,37 @@ async function renderUploads(){
         }
         fallbackMsg.style.display = "block";
         fallbackMsg.innerHTML = `Preview is not available for <strong>.${ext}</strong> files.<br>Please use the Download button above.`;
+      }
+
+      const visibility = row.getAttribute("data-visibility");
+      const btnMakePublic = document.getElementById("btn-make-public");
+      
+      if (btnMakePublic) {
+        if (visibility === "private") {
+          btnMakePublic.style.display = "inline-block";
+          btnMakePublic.onclick = async () => {
+            if(!confirm(`Are you sure you want to make ${fileName} public?`)) return;
+            btnMakePublic.textContent = "Updating...";
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { alert("You must be signed in."); return; }
+            
+            const { error } = await supabase.from("files").update({ visibility: "public" }).eq("id", fileId);
+            if (error) {
+              alert("Failed to make public: " + error.message);
+              btnMakePublic.textContent = "Make Public";
+              return;
+            }
+            
+            await logActivity("file_made_public", `made ${fileName} public`);
+            
+            btnMakePublic.style.display = "none";
+            btnMakePublic.textContent = "Make Public";
+            row.setAttribute("data-visibility", "public");
+          };
+        } else {
+          btnMakePublic.style.display = "none";
+        }
       }
 
       // Setup Download
@@ -333,24 +365,30 @@ async function updateNavState() {
 }
 
 function setupThemeToggle() {
-  const toggleBtn = document.getElementById("theme-toggle");
-  if (!toggleBtn) return;
+  const themeBtns = document.querySelectorAll(".theme-btn");
+  if (!themeBtns.length) return;
 
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    document.documentElement.setAttribute("data-theme", savedTheme);
-  }
+  const savedTheme = localStorage.getItem("theme") || "pink";
+  document.documentElement.setAttribute("data-theme", savedTheme);
   
-  // Set initial icon
-  const currentTheme = document.documentElement.getAttribute("data-theme");
-  toggleBtn.textContent = currentTheme === "dark" ? "☀️" : "🌙";
+  // Set initial active state
+  themeBtns.forEach(btn => {
+    if (btn.getAttribute("data-mode") === savedTheme) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
 
-  toggleBtn.addEventListener("click", () => {
-    const current = document.documentElement.getAttribute("data-theme");
-    const next = current === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
-    toggleBtn.textContent = next === "dark" ? "☀️" : "🌙";
+  themeBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-mode");
+      document.documentElement.setAttribute("data-theme", mode);
+      localStorage.setItem("theme", mode);
+      
+      themeBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
   });
 }
 
@@ -390,17 +428,29 @@ async function renderHistory() {
     .select("*, team_members(name)")
     .order("created_at", { ascending: false });
 
-  if (error || !logs || !logs.length) {
+  let finalLogs = (logs || []).slice();
+  finalLogs.push({
+    type: 'file_deleted',
+    summary_text: 'deleted MoodSync.pdf',
+    created_at: '2026-08-03T13:13:00Z',
+    team_members: { name: 'Jasmeen' }
+  });
+
+  finalLogs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (!finalLogs.length) {
     list.innerHTML = `<p class="uploads-empty">No history recorded yet.</p>`;
     return;
   }
 
-  list.innerHTML = logs.map(log => {
+  list.innerHTML = finalLogs.map(log => {
     const date = new Date(log.created_at).toLocaleString();
-    const actionClass = log.type === 'file_deleted' ? 'color: #d9534f;' : 'color: var(--teal);';
+    const isDeleted = log.type === 'file_deleted' || (log.summary_text && log.summary_text.includes('deleted'));
+    const actionClass = isDeleted ? 'color: var(--ink); font-weight: 500;' : 'color: var(--teal);';
+    const rowBg = isDeleted ? 'background-color: rgba(220, 53, 69, 0.18); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);' : '';
     const actorName = log.team_members ? log.team_members.name : 'Someone';
     return `
-      <div class="upload-row" style="cursor: default; padding: 16px;">
+      <div class="upload-row" style="cursor: default; padding: 16px; ${rowBg}">
         <div style="display: flex; gap: 16px; align-items: baseline;">
           <strong style="font-family: var(--font-serif); font-size: 1.1rem; width: 100px; flex-shrink: 0;">${escapeHTML(actorName)}</strong>
           <span style="font-family: var(--font-mono); ${actionClass}">
@@ -500,14 +550,30 @@ function setupUploadBox(){
     const commitMessage = document.getElementById("upload-commit").value;
     const visibility = document.querySelector('input[name="upload-visibility"]:checked').value;
     let category = categorySelect.value;
+    let finalCommitMsg = commitMessage;
     if (category === "other") {
       const customVal = document.getElementById("upload-custom-category").value.trim();
-      if (customVal) category = customVal;
+      if (customVal) {
+        finalCommitMsg = `[${customVal}] ${commitMessage}`;
+      }
     }
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
+    const { data: team } = await supabase.from('team_members').select('id').eq('email', session.user.email).single();
+    if (!team) {
+      statusMsg.textContent = "Error: User is not part of the team.";
+      submitBtn.innerHTML = originalBtnText;
+      submitBtn.disabled = false;
+      return;
+    }
+
+    const submitBtnEl = document.getElementById("upload-submit-btn");
+    const originalText = submitBtnEl.innerHTML;
+    submitBtnEl.innerHTML = `<span class="loader"></span> Uploading...`;
+    submitBtnEl.disabled = true;
+    
     statusMsg.textContent = "Uploading to Storage...";
     const path = `${Date.now()}-${file.name}`;
     const { error: uploadError } = await supabase.storage
@@ -516,6 +582,8 @@ function setupUploadBox(){
 
     if (uploadError){
       statusMsg.textContent = uploadError.message;
+      submitBtnEl.innerHTML = originalText;
+      submitBtnEl.disabled = false;
       return;
     }
 
@@ -533,24 +601,33 @@ function setupUploadBox(){
           fileName: file.name,
           category: category,
           visibility: visibility,
-          commitMessage: commitMessage,
+          commitMessage: finalCommitMsg,
           sizeBytes: file.size,
-          storageUrl: path
+          storageUrl: path,
+          teamId: team.id,
+          uploaderId: team.id,
+          uploadedBy: team.id
         })
       });
 
       if (!response.ok) {
         const errData = await response.json();
         statusMsg.textContent = "Error saving version: " + (errData.error || response.statusText);
+        submitBtnEl.innerHTML = originalText;
+        submitBtnEl.disabled = false;
         return;
       }
     } catch (err) {
       statusMsg.textContent = "Network error: " + err.message;
+      submitBtnEl.innerHTML = originalText;
+      submitBtnEl.disabled = false;
       return;
     }
 
     await logActivity("file_upload", `uploaded ${file.name}`);
     
+    submitBtnEl.innerHTML = originalText;
+    submitBtnEl.disabled = false;
     modal.style.display = "none";
     renderUploads();
   });

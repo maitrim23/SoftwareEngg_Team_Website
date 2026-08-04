@@ -26,7 +26,12 @@
       <a href="history.html" class="nav-link auth-only" style="display: none;">History</a>
     </nav>
     <div class="header-right">
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+      <div class="theme-switcher">
+        <button class="theme-btn theme-btn--pink" data-mode="pink" aria-label="Pink mode"></button>
+        <button class="theme-btn theme-btn--green" data-mode="green" aria-label="Green mode"></button>
+        <button class="theme-btn theme-btn--blue" data-mode="blue" aria-label="Blue mode"></button>
+        <button class="theme-btn theme-btn--dark" data-mode="dark" aria-label="Dark mode"></button>
+      </div>
       <a href="auth.html" class="signin-btn">Team sign in</a>
     </div>
   </div>
@@ -74,6 +79,7 @@
           <div class="preview-header">
             <h3 id="preview-title" class="preview-title">File Preview</h3>
             <div class="preview-actions">
+              <button type="button" id="btn-make-public" class="preview-btn auth-only" style="display: none;">Make Public</button>
               <button type="button" id="btn-download" class="preview-btn">Download</button>
               <button type="button" id="btn-delete" class="preview-btn preview-btn--danger auth-only" style="display: none;">Delete</button>
             </div>
@@ -138,12 +144,6 @@
   </div>
 
 </main>
-
-<footer class="site-footer">
-  <div class="wrap footer-inner">
-    <p class="footer-text">Software Engineering Project — internal team record</p>
-  </div>
-</footer>
 
 <script type="module" src="script.js"></script>
 </body>
